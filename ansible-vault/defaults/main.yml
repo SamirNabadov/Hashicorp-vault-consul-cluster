@@ -13,8 +13,6 @@ consul_binary: "/usr/local/bin/consul"
 vault_bin_path: "/usr/local/bin"
 vault_configd_path: "/etc/vault.d"
 vault_tmp: "/tmp/vault"
-
-#vault_data_path: "/var/lib/consul"
 vault_log_path: "{{ lookup('env','CONSUL_LOG_PATH') | default('/var/log/vault', true) }}"
 vault_binary: "{{ vault_bin_path }}/vault"
 home_dir: /home/ansible
