@@ -31,7 +31,6 @@
     mode: 0775
   loop:
       - "{{ vault_configd_path }}"
-      #- "{{ vault_data_path }}"
       - "{{ vault_log_path }}"
       - "{{ vault_tmp }}"
 
