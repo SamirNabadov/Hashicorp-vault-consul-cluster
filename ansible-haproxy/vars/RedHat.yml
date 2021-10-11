@@ -1,0 +1,6 @@
+compiler: "gcc"
+pcre_libs_dev: "pcre-devel"
+pcre_libs_static: "pcre-static"
+systemd_libs_dev: "systemd-devel"
+openssl_devel: "openssl-devel"
+

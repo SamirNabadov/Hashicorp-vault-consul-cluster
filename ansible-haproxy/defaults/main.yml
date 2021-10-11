@@ -1,0 +1,30 @@
+---
+
+haproxy_src: "http://www.haproxy.org/download/2.0/src/haproxy-2.0.7.tar.gz"
+haproxy_chksum: "md5:1db3d8bedb3482ffd3a930e24e414b55"
+haproxy_mc: "2000"
+haproxy_bin_path: "/usr/bin"
+haproxy_conf: "/etc/haproxy/haproxy.cfg"
+haproxy_pid: "/var/run/haproxy/haproxy.pid"
+haproxy_service: "haproxy"
+haproxy_user: "haproxy"
+haproxy_uid: "8801"
+haproxy_group: "haproxy"
+haproxy_gid: "8801"
+ka_base_ip: '192.168.1.'
+ka_vip: '192.168.1.10'
+ka_conf: "/etc/keepalived/keepalived.conf"
+keepalived_service: "keepalived"
+haproxy_ssl_path: /etc/haproxy/ssl
+haproxy_ssl: vault.consul.local.az
+max_vault_servers: 3
+max_consul_servers: 3
+vault_port: 8200
+consul_port: 8500
+consul_dns_port: 8600
+frontend:
+  vault: vault_frontend
+  consul: consul_frontend
+backend:
+  vault: vault_backend
+  consul: consul_backend

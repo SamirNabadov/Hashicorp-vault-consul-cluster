@@ -1,0 +1,31 @@
+---
+### Packages
+consul_version: "{{ lookup('env','CONSUL_VERSION') | default('1.10.3', true) }}"
+consul_zip_url: "https://releases.hashicorp.com/consul/{{ consul_version }}/consul_{{ consul_version }}_linux_amd64.zip"
+consul_pkg: "consul_{{ consul_version }}_linux_amd64.zip"
+consul_os_packages:
+  - wget
+  - unzip
+  - bind-utils
+
+### Paths
+consul_bin_path: "/usr/local/bin"
+consul_configd_path: "/etc/consul.d"
+consul_tmp: "/tmp/consul"
+consul_data_path: "/var/lib/consul"
+consul_log_path: "{{ lookup('env','CONSUL_LOG_PATH') | default('/var/log/consul', true) }}"
+consul_binary: "{{ consul_bin_path }}/consul"
+bootstrap_dir: /home/ansible
+
+### Config
+consul_join: []
+start_join: []
+
+### System user and group
+consul_user: "consul"
+consul_group: "consul"
+consul_systemd_path: "/etc/systemd/system/"
+
+### ACL
+acL_enabled: "true"
+default_policy: "deny"

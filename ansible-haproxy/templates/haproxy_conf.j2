@@ -1,0 +1,45 @@
+global
+  maxconn {{ haproxy_mc }}
+  pidfile /var/run/haproxy/haproxy.pid
+  log     127.0.0.1 local0
+  log     127.0.0.1 local1 notice
+
+  # echo "" | nc -U /var/run/haproxy.sock
+  stats   socket /var/run/haproxy/haproxy.sock mode 777
+
+defaults
+  log global
+  mode tcp
+  option dontlognull
+  retries 3
+  timeout check 5s
+  timeout client 5s
+  timeout connect 10s
+  timeout server 10s
+  # if not initialized, haproxy fails at configuration
+  default-server init-addr none
+
+resolvers consul-dns
+{% for host in groups.consul_instances %}
+  nameserver {{ host }}  {{ hostvars[host]['ansible_host'] }}:{{ consul_dns_port }}
+{% endfor %}
+  resolve_retries 3
+  hold valid 100ms
+
+frontend {{ frontend.vault }}
+  bind {{ ka_vip }}:{{ vault_port }} ssl crt {{ haproxy_ssl_path }}/{{ haproxy_ssl }}.pem
+  option tcplog
+  tcp-request inspect-delay 2s
+  default_backend {{ backend.vault }}
+
+backend {{ backend.vault }}
+  server-template vault {{ max_vault_servers }} vault.service.consul:{{ vault_port }} inter 1s resolvers consul-dns resolve-prefer ipv4 check
+
+frontend {{ frontend.consul }}
+  bind {{ ka_vip }}:{{ consul_port }} ssl crt {{ haproxy_ssl_path }}/{{ haproxy_ssl }}.pem
+  option tcplog
+  tcp-request inspect-delay 2s
+  default_backend {{ backend.consul }}
+
+backend {{ backend.consul }}
+  server-template consul {{ max_consul_servers }} consul.service.consul:{{ consul_port }} inter 1s resolvers consul-dns resolve-prefer ipv4 check

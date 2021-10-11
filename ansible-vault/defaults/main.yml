@@ -1,0 +1,27 @@
+---
+### Packages
+vault_version: "{{ lookup('env','VAULT_VERSION') | default('1.8.2', true) }}"
+vault_zip_url: "https://releases.hashicorp.com/vault/{{ vault_version }}/vault_{{ vault_version }}_linux_amd64.zip"
+vault_pkg: "vault_{{ vault_version }}_linux_amd64.zip"
+vault_os_packages:
+  - wget
+  - unzip
+  - bind-utils
+
+### Paths
+consul_binary: "/usr/local/bin/consul"
+vault_bin_path: "/usr/local/bin"
+vault_configd_path: "/etc/vault.d"
+vault_tmp: "/tmp/vault"
+
+#vault_data_path: "/var/lib/consul"
+vault_log_path: "{{ lookup('env','CONSUL_LOG_PATH') | default('/var/log/vault', true) }}"
+vault_binary: "{{ vault_bin_path }}/vault"
+home_dir: /home/ansible
+
+### System user and group
+vault_user: "vault"
+vault_group: "vault"
+vault_systemd_path: "/etc/systemd/system/"
+
+

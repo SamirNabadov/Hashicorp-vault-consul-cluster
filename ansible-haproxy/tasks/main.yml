@@ -1,0 +1,299 @@
+---
+- name: Stop and disable haproxy & Keepalived systemd service
+  systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: no
+  register: command_result
+  failed_when: "command_result is failed and ('find' not in command_result.msg and 'found' not in command_result.msg)"
+  with_items:
+    - "keepalived"
+    - "{{ haproxy_service }}"
+
+- name: Disable non-local IP bindings
+  sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: '1'
+    state: absent
+    reload: yes
+
+- name: Delete haproxy systemd service config
+  package:
+    name: "haproxy"
+    state: absent
+
+- name: Delete haproxy systemd service config
+  file:
+    path: "/etc/systemd/system/{{ haproxy_service }}.service"
+    state: absent
+
+- name: Delete haproxy directory structures
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "{{ haproxy_conf | dirname }}"
+
+- name: Remove haproxy user
+  user:
+    name: "{{ haproxy_user }}"
+    state: absent
+    force: yes
+    remove: yes
+
+- name: Remove haproxy group
+  group:
+    name: "{{ haproxy_group }}"
+    state: absent
+
+- name: Remove haproxy binary
+  file:
+    path: "{{ haproxy_bin_path }}/haproxy"
+    state: absent
+
+- name: Load a variable file based on the OS type
+  include_vars: "{{ item }}"
+  with_first_found:
+    - "../vars/{{ ansible_distribution }}-{{ ansible_distribution_major_version | int}}.yml"
+    - "../vars/{{ ansible_distribution }}.yml"
+    - "../vars/{{ ansible_os_family }}.yml"
+    - "../vars/default.yml"
+  when: systemd_libs is not defined
+
+- name: Create list of dependencies
+  set_fact:
+    haproxy_dependencies:
+      - "{{ compiler }}"
+      - "{{ pcre_libs_dev }}"
+      - "{{ systemd_libs_dev }}"
+      - "{{ pcre_libs_static }}"
+      - "{{ openssl_devel }}"
+
+- name: Install dependencies
+  package:
+    name: "{{ lookup('flattened', haproxy_dependencies) }}"
+    state: present
+
+- name: Download haproxy source code ({{ haproxy_src | basename }})
+  get_url:
+    url: "{{ haproxy_src }}"
+    checksum: "{{ haproxy_chksum }}"
+    dest: "/tmp/{{ haproxy_src | basename }}"
+    force: yes
+    owner: root
+    group: root
+
+- name: Unzip haproxy source code ({{ haproxy_src | basename }})
+  unarchive:
+    src: "/tmp/{{ haproxy_src | basename }}"
+    remote_src: yes
+    dest: "/tmp/"
+    owner: root
+    group: root
+    mode: 0755
+    keep_newer: true
+
+- name: Compile haproxy from source
+  make:
+    chdir: /tmp/{{ haproxy_src | basename | replace('.tar.gz', '') }}
+    params:
+       TARGET: linux-glibc
+       USE_PCRE: 1
+       USE_OPENSSL: 1
+       USE_ZLIB: 1
+       USE_CRYPT_H: 1
+       USE_LIBCRYPT: 1
+       USE_SYSTEMD: 1
+
+- name: Create haproxy group
+  group:
+    name: "{{ haproxy_group }}"
+    gid: "{{ haproxy_gid }}"
+    state: present
+
+- name: Create haproxy user
+  user:
+    name: "{{ haproxy_user }}"
+    group: "{{ haproxy_group }}"
+    uid: "{{ haproxy_uid }}"
+    comment: "HAProxy service user"
+    shell: /sbin/nologin
+    system: yes
+    state: present
+
+- name: Create haproxy directory structures
+  file:
+    path: "{{ item }}"
+    owner: "{{ haproxy_user }}"
+    group: "{{ haproxy_group }}"
+    mode: 0750
+    state: directory
+  with_items:
+    - "{{ haproxy_conf | dirname }}"
+
+- name: Copy haproxy binary into directory
+  copy:
+    src: /tmp/{{ haproxy_src | basename | replace('.tar.gz', '') }}/haproxy
+    dest: "{{ haproxy_bin_path }}"
+    remote_src: yes
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create haproxy systemd service config
+  template:
+    src: service.j2
+    dest: "/etc/systemd/system/{{ haproxy_service }}.service"
+    owner: root
+    group: root
+    mode: 0664
+    force: no
+
+- name: Update the /etc/hosts file with node names
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '.*{{ item }}$'
+    line: "{{ hostvars[item].ansible_host }} {{item}}"
+    state: present
+  when: hostvars[item].ansible_host is defined
+  loop: "{{ groups.all }}"
+
+- name: Create Haproxy TLS directory
+  become: true
+  file:
+    dest: "{{ item }}"
+    state: directory
+    owner: "{{ haproxy_user }}"
+    group: "{{ haproxy_group }}"
+    mode: 0750
+  loop:
+    - "{{ haproxy_ssl_path }}"
+
+- name: Install packages
+  package:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - python-pip
+
+- name: Upgrade PIP
+  pip:
+    name: pip
+    state: latest
+    executable: pip3
+
+- name: Install python OpenSSL dependencies
+  pip:
+    name: "{{ item }}"
+    executable: pip3
+  loop:
+    - "pyOpenSSL"
+
+- name: Generate OpenSSL private key pem file
+  openssl_privatekey:
+    path: "{{ haproxy_ssl_path }}/{{ haproxy_ssl }}.key"
+    size: 4096
+    owner: "{{ haproxy_user }}"
+    group: "{{ haproxy_group }}"
+    mode: 0640
+
+- name: Generate an OpenSSL CSR
+  openssl_csr:
+    path: "{{ haproxy_ssl_path }}/{{ haproxy_ssl }}.csr"
+    privatekey_path: "{{ haproxy_ssl_path }}/{{ haproxy_ssl }}.key"
+    common_name: "{{haproxy_ssl}}"
+    country_name: AZ
+    organization_name: Eurodesign
+    owner: "{{ haproxy_user }}"
+    group: "{{ haproxy_group }}"
+    mode: 0640
+
+- name: Generate a Self-Signed OpenSSL certificate
+  openssl_certificate:
+    path: "{{ haproxy_ssl_path }}/{{ haproxy_ssl }}.crt"
+    privatekey_path: "{{ haproxy_ssl_path }}/{{ haproxy_ssl }}.key"
+    csr_path: "{{ haproxy_ssl_path }}/{{ haproxy_ssl }}.csr"
+    provider: selfsigned
+    owner: "{{ haproxy_user }}"
+    group: "{{ haproxy_group }}"
+    mode: 0640
+
+- name: Set certificate content to key file
+  shell: "rm -rf {{ haproxy_ssl_path }}/{{ haproxy_ssl }}.pem && \
+          cat {{ haproxy_ssl_path }}/{{ haproxy_ssl }}.crt > {{ haproxy_ssl_path }}/{{ haproxy_ssl }}.pem  && \ 
+          cat {{ haproxy_ssl_path }}/{{ haproxy_ssl }}.key >> {{ haproxy_ssl_path }}/{{ haproxy_ssl }}.pem" # && \
+
+- name: Create HAProxy configuration
+  template:
+    src: haproxy_conf.j2
+    dest: "{{ haproxy_conf }}"
+    owner: "{{ haproxy_user }}"
+    group: "{{ haproxy_group }}"
+    mode: 0640
+
+- name: Install Keepalived package
+  package:
+    name: "keepalived"
+    state: present
+
+- name: Set network device variable
+  set_fact:
+    ka_dev: "{{ [hostvars[inventory_hostname]['ansible_' + item]['device']] | join('') }}"
+  when: ka_base_ip in hostvars[inventory_hostname]['ansible_' + item]['ipv4']['address']
+  with_items:
+    - "{{ hostvars[inventory_hostname]['ansible_interfaces'] }}"
+
+- name: Generate random 8 character keepalive encryption string
+  set_fact:
+    ka_secret: "{{ lookup('password', '/dev/null length=8 chars=ascii_letters,digits')}}"
+  run_once: yes
+
+- name: Create Keepalived configuration
+  template:
+    src: keepalived_conf.j2
+    dest: "{{ ka_conf }}"
+    owner: root
+    group: root
+    mode: 0640
+
+- name: Allow HAProxy to bind to non-existent VIP at startup
+  sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: '1'
+    state: present
+    reload: yes
+
+- name: Start and enable HAProxy & Keepalived services
+  systemd:
+    name: "{{ item }}"
+    daemon_reload: yes
+    state: started
+    enabled: yes
+  with_items:
+    - "{{ haproxy_service }}"
+    - "{{ keepalived_service }}"
+
+- name: Start HAProxy & Keepalived systemd services
+  systemd:
+    name: "{{ item }}"
+    state: started
+  with_items:
+    - "{{ haproxy_service }}"
+    - "{{ keepalived_service }}"
+
+- name: Stop Keepalived & HAProxy systemd services
+  systemd:
+    name: "{{ item }}"
+    state: stopped
+  with_items:
+    - "{{ keepalived_service }}"
+    - "{{ haproxy_service }}"
+
+- name: Reload Keepalived & HAProxy systemd services
+  systemd:
+    name: "{{ item }}"
+    state: reloaded
+  with_items:
+    - "{{ keepalived_service }}"
+    - "{{ haproxy_service }}"
+

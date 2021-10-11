@@ -1,0 +1,136 @@
+---
+- name: Update the /etc/hosts file with node names
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '.*{{ item }}$'
+    line: "{{ hostvars[item].ansible_host }} {{item}}"
+    state: present
+  when: hostvars[item].ansible_host is defined
+  loop: "{{ groups.consul_instances }}"
+
+- name: Add Consul group
+  group:
+    name: "{{ consul_group }}"
+    state: present
+
+- name: Add Consul user
+  user:
+    name: "{{ consul_user }}"
+    comment: "Consul nologin user"
+    group: "{{ consul_group }}"
+    shell: /sbin/nologin
+    system: true
+    state: present
+
+- name: Create directories
+  file:
+    dest: "{{ item }}"
+    state: directory
+    owner: "{{ consul_user }}"
+    group: "{{ consul_group }}"
+    mode: 0775
+  loop:
+      - "{{ consul_configd_path }}"
+      - "{{ consul_data_path }}"
+      - "{{ consul_log_path }}"
+      - "{{ consul_tmp }}"
+
+- name: Install OS packages
+  package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ consul_os_packages }}"
+
+- name: Download Consul
+  get_url:
+    url: "{{ consul_zip_url }}"
+    dest: "{{ consul_tmp }}/{{ consul_pkg }}"
+
+- name: Unarchive Consul package
+  unarchive:
+    src: "{{ consul_tmp }}/{{ consul_pkg }}"
+    dest: "{{ consul_tmp }}/"
+    remote_src: yes
+
+- name: Install Consul
+  copy:
+    src: "{{ consul_tmp }}/consul"
+    dest: "{{ consul_binary }}"
+    owner: "{{ consul_user }}"
+    group: "{{ consul_group }}"
+    mode: 0755
+    remote_src: yes
+
+- name: Enable bash completion
+  shell: "{{ consul_binary }} -autocomplete-install && complete -C /usr/local/bin/consul consul"
+  ignore_errors: true
+
+- name: Generate Consul secret
+  shell: "{{ consul_binary }} keygen"
+  run_once: yes
+  register: generation_secret_result
+
+- name: Create consul configuration
+  vars:
+    secret_id:  "{{ generation_secret_result.stdout }}"
+  template:
+    src: config.j2
+    dest: "{{ consul_configd_path }}/config.json"
+    owner: "{{ consul_user }}"
+    group: "{{ consul_group }}"
+    mode: 0644
+  notify:
+    - restart consul
+
+- name: Create systemd script
+  template:
+    src: service.j2
+    dest: "{{ consul_systemd_path }}/consul.service"
+    owner: root
+    group: root
+    mode: 0644
+  notify:
+    - restart consul
+
+- name: Enable consul at startup (systemd)
+  systemd:
+    name: consul
+    enabled: yes
+
+- name: Start Consul
+  service:
+    name: consul
+    state: restarted
+    enabled: true
+
+- name: Create acl policy configuration
+  template:
+    src: consul_acl.j2
+    dest: "{{ consul_configd_path }}/acl_policy.hcl"
+    owner: "{{ consul_user }}"
+    group: "{{ consul_group }}"
+    mode: 0644
+  notify:
+    - restart consul
+
+- name: Restart Consul if needed
+  meta: flush_handlers
+
+- name: Pause for 20 seconds wait consul.
+  pause:
+    seconds: 20
+
+- name: Consul Bootsrap
+  shell: "{{ consul_binary }} acl bootstrap"
+  register: consul_bootstrap
+  run_once: yes
+  ignore_errors: true
+  
+
+- name: Copy key to file
+  copy: 
+    content: "{{consul_bootstrap.stdout}}"
+    dest: "{{ bootstrap_dir }}/bootstrap.log"
+    mode: 0644
+  when: "'SecretID' in consul_bootstrap.stdout"
+

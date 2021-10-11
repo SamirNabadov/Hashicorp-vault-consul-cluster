@@ -1,0 +1,171 @@
+---
+- name: Update the /etc/hosts file with node names
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '.*{{ item }}$'
+    line: "{{ hostvars[item].ansible_host }} {{item}}"
+    state: present
+  when: hostvars[item].ansible_host is defined
+  loop: "{{ groups.vault_instances }}"
+
+- name: Add Vault group
+  group:
+    name: "{{ vault_group }}"
+    state: present
+
+- name: Add Vault user
+  user:
+    name: "{{ vault_user }}"
+    comment: "Vault nologin user"
+    group: "{{ vault_group }}"
+    shell: /sbin/nologin
+    system: true
+    state: present
+
+- name: Create directories
+  file:
+    dest: "{{ item }}"
+    state: directory
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: 0775
+  loop:
+      - "{{ vault_configd_path }}"
+      #- "{{ vault_data_path }}"
+      - "{{ vault_log_path }}"
+      - "{{ vault_tmp }}"
+
+- name: Install OS packages
+  package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ vault_os_packages }}"
+
+- name: Download Vault
+  get_url:
+    url: "{{ vault_zip_url }}"
+    dest: "{{ vault_tmp }}/{{ vault_pkg }}"
+
+- name: Unarchive Vault package
+  unarchive:
+    src: "{{ vault_tmp }}/{{ vault_pkg }}"
+    dest: "{{ vault_tmp }}/"
+    remote_src: yes
+
+- name: Install Vault
+  copy:
+    src: "{{ vault_tmp }}/vault"
+    dest: "{{ vault_binary }}"
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: 0755
+    remote_src: yes
+
+- name: Enable bash completion
+  shell: "{{ vault_binary }} -autocomplete-install && complete -C {{ vault_binary }} vault"
+  ignore_errors: true
+
+- name: Transfer scripts from ansible server
+  copy: 
+    src: "scripts/{{ item  }}"
+    dest: "{{home_dir}}"
+    mode: 0755
+  loop:
+    - unseal.sh
+    - anonymous_token.sh
+    - vault_token.sh
+
+- name: Copy token from bootstrap.log
+  shell: cat bootstrap.log | grep SecretID | awk '{print $2}'
+  register: token_result
+
+- name: Configure policy for consul anonymous token
+  vars:
+    CONSUL_HTTP_TOKEN: "{{ token_result.stdout }}"
+  shell: "sh {{ home_dir }}/anonymous_token.sh {{ CONSUL_HTTP_TOKEN }}"
+  run_once: yes
+  ignore_errors: yes
+
+- name: Create Vault acl configuration
+  template:
+    src: vault_acl.j2
+    dest: "{{ vault_configd_path }}/vault_acl.json"
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: 0644
+  notify:
+    - restart vault
+
+- name: Configure policy for vault token
+  vars:
+    CONSUL_HTTP_TOKEN: "{{ token_result.stdout }}"
+  shell: "sh {{ home_dir }}/vault_token.sh {{ CONSUL_HTTP_TOKEN }}"
+
+- name: Copy token from file
+  shell: " cat {{ home_dir }}/vault_token.log | grep SecretID | awk '{print $2}' "
+  register: vault_token
+
+- name: Create Vault configuration
+  vars:
+    secret_id: "{{ vault_token.stdout }}"
+  template:
+    src: vault_main.j2
+    dest: "{{ vault_configd_path }}/vault.hcl"
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: 0644
+  notify:
+    - restart vault
+
+- name: Create systemd script
+  template:
+    src: service.j2
+    dest: "{{ vault_systemd_path }}/vault.service"
+    owner: root
+    group: root
+    mode: 0644
+  notify:
+    - restart vault
+
+- name: Enable Vault at startup (systemd)
+  systemd:
+    name: vault
+    enabled: yes
+
+- name: Start Vault
+  service:
+    name: vault
+    state: restarted
+    enabled: true
+
+- name: Restart Vault if needed
+  meta: flush_handlers
+
+- name: Pause for 30 seconds wait consul.
+  pause:
+    seconds: 30
+
+- name: Initialise Vault operator
+  shell: "{{ vault_binary }} operator init"
+  environment:
+    VAULT_ADDR: "http://{{ inventory_hostname }}:8200"
+  register: vault_init_results
+  run_once: yes
+  ignore_errors: yes
+
+- name: Copy content init result
+  copy: 
+    content: "{{vault_init_results.stdout}}"
+    dest: "{{ home_dir }}/keys.log"
+    mode: 0777
+  when: "'Unseal Key' in vault_init_results.stdout"
+  ignore_errors: yes
+
+- name: Execute script on remote_machine
+  shell: "sh {{home_dir}}/unseal.sh"
+
+- cron:
+    name: "A job for reboot"
+    special_time: reboot
+    job: "sleep 120 && sh {{home_dir}}/unseal.sh"
+

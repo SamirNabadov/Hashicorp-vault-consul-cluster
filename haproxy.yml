@@ -1,0 +1,8 @@
+---
+- name: Install and Configure Haproxy + Keepalived
+  hosts: haproxy_instances
+  any_errors_fatal: true
+  become: true
+  become_user: root
+  roles:
+    - {role: ansible-haproxy}

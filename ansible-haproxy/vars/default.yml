@@ -1,0 +1,6 @@
+compiler:
+  - "gcc"
+  - "build-essential"
+pcre_libs_dev: "libpcre3-dev"
+systemd_libs_dev: "libsystemd-dev"
+

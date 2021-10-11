@@ -1,0 +1,23 @@
+#Note that the line containing the VIP IP for Haproxy cannot be changed because it is assigned according to the variable line in the deploy script. If changed, the line number in the script must be changed.
+[haproxy_vip]
+192.168.1.10
+
+[haproxy_master]
+haproxy01.local.az ansible_host=192.168.1.11 ansible_python_interpreter=/usr/bin/python3
+
+[haproxy_standby]
+haproxy02.local.az ansible_host=192.168.1.12 ansible_python_interpreter=/usr/bin/python3
+
+[vault_instances]
+vault01.local.az ansible_host=192.168.1.21 ansible_ssh_user=ansible
+vault02.local.az ansible_host=192.168.1.22 ansible_ssh_user=ansible
+vault03.local.az ansible_host=192.168.1.23 ansible_ssh_user=ansible
+
+[consul_instances]
+consul01.local.az ansible_host=192.168.1.21  ansible_ssh_user=ansible
+consul02.local.az ansible_host=192.168.1.22  ansible_ssh_user=ansible
+consul03.local.az ansible_host=192.168.1.23  ansible_ssh_user=ansible
+
+[haproxy_instances:children]
+haproxy_master
+haproxy_standby
