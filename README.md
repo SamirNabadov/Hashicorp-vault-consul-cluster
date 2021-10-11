@@ -1,16 +1,16 @@
-
 VM Infrastructure as Code
-Based on Ansible playbooks, you can create new VMs(including all settings) 
-**Valut & Consul Cluster**
 
-![Vault-Consul-Cluster](https://user-images.githubusercontent.com/32331362/136786835-8ed83f6a-2caf-44f9-8abb-62e05bb71597.jpg)
+Based on Ansible playbooks, you can create new VMs(including all settings) in vCenter within a few minutes and delete it in seconds.
 
 ```
 
-Add hosts adress and names : hosts.yml
+Add hosts address and names for VMs : /vars/host_ip_vars.yml
+Add new users and packages for VMs: /vars/os_vars.yml
+Change vCenter configuration based on your requirements: /vars/vm_vars.yml
 
-Install:
+Install VMs:
+./scripts/deploy_vm.sh
 
-./scripts/deploy.sh
-
+Delete VMs:
+./scripts/remove_vm.sh
 ```
