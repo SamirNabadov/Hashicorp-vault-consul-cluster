@@ -2,7 +2,7 @@
 
 #Assignment of variables    
 vault_host=$(hostname -I | sed -r 's/( )+//g')
-key_path='/home/ansible/keys.log'
+key_path='${HOME}/keys.log'
 
 # Fetching first three keys to unseal the vault
 KEY_1=$(cat $key_path | grep 'Unseal Key 1' | awk '{print $4}')
