@@ -15,7 +15,7 @@ sed -i "s/ka_base_ip:.*/ka_base_ip: '$haproxy_subnet'/" $haproxy_var_path
 sed -i "s/ka_vip:.*/ka_vip: '$haproxy_vip_ip'/" $haproxy_var_path
 
 # Installing and configuring Consul
-ansible-playbook consul.yml -i hosts
+ansible-playbook $project_dir/consul.yml -i hosts
 if [ $? -eq 0 ];
 then
     echo "Consul Configured!"
@@ -25,7 +25,7 @@ else
 fi
 
 # Installing and configuring Vault
-ansible-playbook vault.yml -i hosts
+ansible-playbook $project_dir/vault.yml -i hosts
 if [ $? -eq 0 ];
 then
     echo "Vault Configured!"
@@ -35,7 +35,7 @@ else
 fi
 
 # Installing and configuring Haproxy and Keepalived
-ansible-playbook haproxy.yml -i hosts
+ansible-playbook $project_dir/haproxy.yml -i hosts
 if [ $? -eq 0 ];
 then
     echo "Haproxy Configured!"
