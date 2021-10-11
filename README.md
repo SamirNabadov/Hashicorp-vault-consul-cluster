@@ -22,6 +22,8 @@ Basic settings
 * ACL is activated in Consul
 * Vault is connected to the consul via ACL
 * Bootstrap and unseal keys are stored in the /home/ansible folder on the remote machines
+* HTTPS protocol is activated for Haproxy VIP IP
+
 
 Currently tested on these Operating Systems
 * Linux/RHEL/CentOS 7
@@ -34,6 +36,7 @@ Dependencies
 ------------
 * Requires elevated root privileges
 * Copy Ansible control machine user's public SSH key (usually called id_rsa.pub) into the remote machines working directory
+* Add hosts address and names for VMs : hosts
 
 
 Running the deployment
