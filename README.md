@@ -35,7 +35,7 @@ Requirements
 Dependencies
 ------------
 * Requires elevated root privileges
-* Copy Ansible control machine user's public SSH key (usually called id_rsa.pub) into the remote machines working directory
+* Copy Ansible control machine user's public SSH key (usually called id_rsa.pub) into the remote machine working directory
 * Add hosts address and names for VMs : hosts
 
 
@@ -53,4 +53,3 @@ Author Information
 ------------------
 
 Samir Nabadov
-
