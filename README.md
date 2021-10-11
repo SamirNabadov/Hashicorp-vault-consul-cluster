@@ -23,13 +23,17 @@ Basic settings
 * Vault is connected to the consul via ACL
 * Bootstrap and unseal keys are stored in the /home/ansible folder on the remote machines
 
+Currently tested on these Operating Systems
+* Linux/RHEL/CentOS 7
 
 Requirements
 ------------
 * Ansible 2.11.5
 
-Currently tested on these Operating Systems
-* Linux/RHEL/CentOS 7
+Dependencies
+------------
+* Requires elevated root privileges
+* Copy Ansible control machine user's public SSH key (usually called id_rsa.pub) into the remote machines working directory
 
 
 Running the deployment
