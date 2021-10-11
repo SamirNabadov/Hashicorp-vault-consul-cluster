@@ -15,11 +15,13 @@ Configured software and tools
 * HAProxy 2.0.7
 * Keepalived 1.3.5
 
+
 Basic settings
+------------
 * Vault use Consul as storange backend 
 * ACL is activated in Consul
 * Vault is connected to the consul via ACL
-* Bootstrap and unseal keys will be in the /home/ansible folder on the remote machine
+* Bootstrap and unseal keys are stored in the /home/ansible folder on the remote machine
 
 
 Requirements
