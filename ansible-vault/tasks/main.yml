@@ -74,13 +74,17 @@
     - anonymous_token.sh
     - vault_token.sh
 
-- name: Copy token from bootstrap.log
-  shell: cat bootstrap.log | grep SecretID | awk '{print $2}'
-  register: token_result
+- name: Copy bootstrap token from bootstrap.log
+  shell: cat {{ home_dir }}/bootstrap.log | grep SecretID | awk '{print $2}'
+  register: bootstrap_token_result
+
+- name: Copy root token from keys.log
+  shell: cat {{ home_dir }}/keys.log | grep Root | awk '{print $4}'
+  register: root_token_result
 
 - name: Configure policy for consul anonymous token
   vars:
-    CONSUL_HTTP_TOKEN: "{{ token_result.stdout }}"
+    CONSUL_HTTP_TOKEN: "{{ bootstrap_token_result.stdout }}"
   shell: "sh {{ home_dir }}/anonymous_token.sh {{ CONSUL_HTTP_TOKEN }}"
   run_once: yes
   ignore_errors: yes
@@ -97,7 +101,7 @@
 
 - name: Configure policy for vault token
   vars:
-    CONSUL_HTTP_TOKEN: "{{ token_result.stdout }}"
+    CONSUL_HTTP_TOKEN: "{{ bootstrap_token_result.stdout }}"
   shell: "sh {{ home_dir }}/vault_token.sh {{ CONSUL_HTTP_TOKEN }}"
 
 - name: Copy token from file
@@ -162,6 +166,22 @@
 
 - name: Execute script on remote_machine
   shell: "sh {{home_dir}}/unseal.sh"
+  
+- name: Enable vault kv with path secret
+  environment:
+    VAULT_ADDR: "http://{{ inventory_hostname }}:8200"
+    VAULT_TOKEN: "{{ root_token_result.stdout }}"
+  shell: "{{ vault_binary }} secrets enable -path=secret kv"
+  run_once: yes
+  ignore_errors: yes
+
+- name: Enable vault approle auth method
+  environment:
+    VAULT_ADDR: "http://{{ inventory_hostname }}:8200"
+    VAULT_TOKEN: "{{ root_token_result.stdout }}"
+  shell: "{{ vault_binary }} auth enable approle"
+  run_once: yes
+  ignore_errors: yes
 
 - cron:
     name: "A job for reboot"
