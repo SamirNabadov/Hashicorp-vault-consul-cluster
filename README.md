@@ -21,6 +21,7 @@ Basic settings
 * Vault use Consul as storange backend 
 * ACL is activated in Consul
 * Vault is connected to the consul via ACL
+* Enabled kv with path secret and enabled approle auth method
 * Bootstrap and unseal keys are stored in the /home/ansible folder on the remote machines
 * Adding script for auto seal vault to cron job os startup
 * HTTPS protocol is activated for Haproxy VIP IP
