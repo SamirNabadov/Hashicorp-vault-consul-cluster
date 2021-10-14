@@ -33,7 +33,7 @@ frontend {{ frontend.vault }}
   default_backend {{ backend.vault }}
 
 backend {{ backend.vault }}
-  server-template vault {{ max_vault_servers }} vault.service.consul:{{ vault_port }} inter 1s resolvers consul-dns resolve-prefer ipv4 check
+  server-template vault {{ max_vault_servers }} active.vault.service.consul:{{ vault_port }} inter 1s resolvers consul-dns resolve-prefer ipv4 check
 
 frontend {{ frontend.consul }}
   bind {{ ka_vip }}:{{ consul_port }} ssl crt {{ haproxy_ssl_path }}/{{ haproxy_ssl }}.pem
